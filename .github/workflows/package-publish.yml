@@ -1,0 +1,60 @@
+name: Build & Publish NuGet Packages
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-test-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Determine Package Version
+        id: versioning
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="10.0.18-preview.${{ github.run_number }}"
+          fi
+          echo "PACKAGE_VERSION=${VERSION}" >> $GITHUB_ENV
+          echo "Selected version: ${VERSION}"
+
+      - name: Run FEC Unit & Integration Tests
+        run: dotnet test test/unit/SIPSorcery.UnitTests.csproj -f net10.0 -c Release --filter "FullyQualifiedName~Ulpfec"
+
+      - name: Pack SIPSorceryMedia.Abstractions
+        run: dotnet pack src/SIPSorceryMedia.Abstractions/SIPSorceryMedia.Abstractions.csproj -c Release -p:PackageVersion=${{ env.PACKAGE_VERSION }} -o ./artifacts
+
+      - name: Pack SIPSorcery
+        run: dotnet pack src/SIPSorcery/SIPSorcery.csproj -c Release -p:PackageVersion=${{ env.PACKAGE_VERSION }} -o ./artifacts
+
+      - name: Upload NuGet Packages to GitHub Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages-${{ env.PACKAGE_VERSION }}
+          path: ./artifacts/*.nupkg
+          retention-days: 30
+
+      - name: Publish to GitHub Packages
+        run: |
+          dotnet nuget push "./artifacts/*.nupkg" \
+            --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
+            --api-key ${{ secrets.GITHUB_TOKEN }} \
+            --skip-duplicate
