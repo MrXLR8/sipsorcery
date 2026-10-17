@@ -14,7 +14,10 @@ permissions:
 
 jobs:
   build-test-publish:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - name: Checkout Repository
@@ -36,14 +39,19 @@ jobs:
           echo "PACKAGE_VERSION=${VERSION}" >> $GITHUB_ENV
           echo "Selected version: ${VERSION}"
 
+      - name: Build Libraries
+        run: |
+          dotnet build src/SIPSorceryMedia.Abstractions/SIPSorceryMedia.Abstractions.csproj -c Release -p:PackageVersion=${{ env.PACKAGE_VERSION }}
+          dotnet build src/SIPSorcery/SIPSorcery.csproj -c Release -p:PackageVersion=${{ env.PACKAGE_VERSION }}
+
       - name: Run FEC Unit & Integration Tests
         run: dotnet test test/unit/SIPSorcery.UnitTests.csproj -f net10.0 -c Release --filter "FullyQualifiedName~Ulpfec"
 
       - name: Pack SIPSorceryMedia.Abstractions
-        run: dotnet pack src/SIPSorceryMedia.Abstractions/SIPSorceryMedia.Abstractions.csproj -c Release -p:PackageVersion=${{ env.PACKAGE_VERSION }} -o ./artifacts
+        run: dotnet pack src/SIPSorceryMedia.Abstractions/SIPSorceryMedia.Abstractions.csproj -c Release --no-build -p:PackageVersion=${{ env.PACKAGE_VERSION }} -o ./artifacts
 
       - name: Pack SIPSorcery
-        run: dotnet pack src/SIPSorcery/SIPSorcery.csproj -c Release -p:PackageVersion=${{ env.PACKAGE_VERSION }} -o ./artifacts
+        run: dotnet pack src/SIPSorcery/SIPSorcery.csproj -c Release --no-build -p:PackageVersion=${{ env.PACKAGE_VERSION }} -o ./artifacts
 
       - name: Upload NuGet Packages to GitHub Artifacts
         uses: actions/upload-artifact@v4
