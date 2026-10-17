@@ -41,17 +41,17 @@ jobs:
 
       - name: Build Libraries
         run: |
-          dotnet build src/SIPSorceryMedia.Abstractions/SIPSorceryMedia.Abstractions.csproj -c Release -p:PackageVersion=${{ env.PACKAGE_VERSION }}
-          dotnet build src/SIPSorcery/SIPSorcery.csproj -c Release -p:PackageVersion=${{ env.PACKAGE_VERSION }}
+          dotnet build src/SIPSorceryMedia.Abstractions/SIPSorceryMedia.Abstractions.csproj -c Release -p:PackageVersion=${{ env.PACKAGE_VERSION }} -p:RepositoryUrl=https://github.com/${{ github.repository }}
+          dotnet build src/SIPSorcery/SIPSorcery.csproj -c Release -p:PackageVersion=${{ env.PACKAGE_VERSION }} -p:RepositoryUrl=https://github.com/${{ github.repository }}
 
       - name: Run FEC Unit & Integration Tests
         run: dotnet test test/unit/SIPSorcery.UnitTests.csproj -f net10.0 -c Release --filter "FullyQualifiedName~Ulpfec"
 
       - name: Pack SIPSorceryMedia.Abstractions
-        run: dotnet pack src/SIPSorceryMedia.Abstractions/SIPSorceryMedia.Abstractions.csproj -c Release --no-build -p:PackageVersion=${{ env.PACKAGE_VERSION }} -o ./artifacts
+        run: dotnet pack src/SIPSorceryMedia.Abstractions/SIPSorceryMedia.Abstractions.csproj -c Release --no-build -p:PackageVersion=${{ env.PACKAGE_VERSION }} -p:RepositoryUrl=https://github.com/${{ github.repository }} -o ./artifacts
 
       - name: Pack SIPSorcery
-        run: dotnet pack src/SIPSorcery/SIPSorcery.csproj -c Release --no-build -p:PackageVersion=${{ env.PACKAGE_VERSION }} -o ./artifacts
+        run: dotnet pack src/SIPSorcery/SIPSorcery.csproj -c Release --no-build -p:PackageVersion=${{ env.PACKAGE_VERSION }} -p:RepositoryUrl=https://github.com/${{ github.repository }} -o ./artifacts
 
       - name: Upload NuGet Packages to GitHub Artifacts
         uses: actions/upload-artifact@v4
@@ -62,7 +62,12 @@ jobs:
 
       - name: Publish to GitHub Packages
         run: |
-          dotnet nuget push "./artifacts/*.nupkg" \
-            --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
-            --api-key ${{ secrets.GITHUB_TOKEN }} \
-            --skip-duplicate
+          for pkg in ./artifacts/*.nupkg; do
+            if [ -f "$pkg" ]; then
+              echo "Pushing $pkg to GitHub Packages..."
+              dotnet nuget push "$pkg" \
+                --source "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
+                --api-key ${{ secrets.GITHUB_TOKEN }} \
+                --skip-duplicate
+            fi
+          done
